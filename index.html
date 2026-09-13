@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <title>河流声音地图 · 亲子互动装置</title>
+  </head>
+  <body>
+    <div id="hud">🎵 <span id="noteCount">0</span>/<span id="noteTotal">6</span></div>
+    <button
+      id="panelToggle"
+      type="button"
+      aria-label="打开家长面板"
+      aria-expanded="false"
+      aria-controls="panel"
+      title="家长面板"
+    >
+      🎛️
+    </button>
+
+    <div id="panel" class="hidden" role="region" aria-label="家长控制面板">
+      <div class="group">
+        <div class="label-row">
+          <label for="flow">🌊 水流速度</label>
+          <output id="flowVal" for="flow" class="readout">0.8 m/s</output>
+        </div>
+        <input id="flow" type="range" min="0" max="100" value="40" />
+      </div>
+      <div class="group">
+        <div class="label-row">
+          <label for="level">💧 水位高低</label>
+          <output id="levelVal" for="level" class="readout">50 cm</output>
+        </div>
+        <input id="level" type="range" min="0" max="100" value="50" />
+      </div>
+      <div class="group row" role="group" aria-label="天气选择">
+        <button
+          type="button"
+          class="weather active"
+          data-weather="sunny"
+          aria-pressed="true"
+          aria-label="晴天"
+          title="晴天"
+        >
+          ☀️
+        </button>
+        <button
+          type="button"
+          class="weather"
+          data-weather="rain"
+          aria-pressed="false"
+          aria-label="雨天"
+          title="雨天"
+        >
+          🌧️
+        </button>
+        <button
+          type="button"
+          class="weather"
+          data-weather="wind"
+          aria-pressed="false"
+          aria-label="风天"
+          title="风天"
+        >
+          💨
+        </button>
+      </div>
+      <div class="group row">
+        <button id="mic" type="button" aria-pressed="false" aria-label="录一段声音">
+          🎙️ 录一段声音
+        </button>
+        <button
+          id="mute"
+          type="button"
+          aria-pressed="false"
+          aria-label="静音"
+          title="静音"
+        >
+          🔊
+        </button>
+      </div>
+      <div class="group performance" role="group" aria-label="录下演奏">
+        <div class="label-row">
+          <label for="perfStart">🔴 录下演奏</label>
+          <output id="perfTime" class="readout" for="perfStart">0:00 / 1:00</output>
+        </div>
+        <div class="row" id="perfIdleRow">
+          <button id="perfStart" type="button" class="primary">⏺️ 开始录制</button>
+        </div>
+        <div class="row" id="perfRecordingRow" hidden>
+          <button id="perfStop" type="button" class="primary">⏹️ 停止</button>
+          <button id="perfCancelRec" type="button" class="danger">取消</button>
+        </div>
+        <div class="row" id="perfResultRow" hidden>
+          <button id="perfPreview" type="button">▶️ 试听</button>
+          <button id="perfDownload" type="button" class="primary">⬇️ 下载</button>
+          <button id="perfDiscard" type="button" class="danger ghost" aria-label="放弃这段录音，重新录制">✕</button>
+        </div>
+        <audio id="perfAudio" preload="metadata" controls hidden></audio>
+        <p class="tip">把孩子拼的旋律——内置音符、录音碎片和流水/雨/风环境声——一起录成音频，最长 60 秒；停止后可试听、下载到本机，或取消重来。静音状态下也能录。</p>
+      </div>
+      <div class="group row">
+        <button id="challengeStart" type="button" class="primary">
+          🎧 听音挑战
+        </button>
+        <button id="taskBookOpen" type="button" aria-label="打开声音探索任务册">
+          📖 任务册<span id="taskBookBadge" class="task-badge" hidden></span>
+        </button>
+      </div>
+
+      <div class="group portfolio" role="group" aria-label="本地作品集">
+        <div class="label-row">
+          <span class="portfolio-title">📚 河流之歌作品集</span>
+          <span id="currentSong" class="readout" hidden></span>
+        </div>
+        <div class="row">
+          <button id="saveSong" type="button" class="primary">💾 保存这首歌</button>
+          <button id="saveAsSong" type="button" hidden>另存为新歌</button>
+        </div>
+        <div class="row">
+          <button id="importSong" type="button">📥 导入作品备份</button>
+          <input id="importFile" type="file" accept=".json,application/json" hidden />
+        </div>
+        <ul id="songList" class="song-list" aria-label="已保存的河流之歌"></ul>
+        <p id="songListEmpty" class="tip">还没有保存过作品：给孩子拼好的歌起个名字，点「保存这首歌」吧。</p>
+      </div>
+
+      <p class="tip">
+        孩子玩法：把河里的声波碎片拖进上面的圆圈，拼出河流的歌；调高水位，找找被淹没的
+        ♪。「录一段声音」需要麦克风权限；「录下演奏」直接收录设备里的旋律，不需要麦克风。作品只保存在这台设备上；点作品旁的 📤 导出备份文件，就能在另一台设备上「导入」继续编辑。
+      </p>
+    </div>
+
+    <!-- 命名 / 另存对话框 -->
+    <div id="songDialog" class="dialog-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="songDialogTitle">
+      <form id="songDialogForm" class="dialog">
+        <h2 id="songDialogTitle">给河流之歌起个名字</h2>
+        <input
+          id="songNameInput"
+          type="text"
+          maxlength="24"
+          placeholder="例如：小雨的早晨"
+          autocomplete="off"
+          aria-label="歌曲名字"
+        />
+        <div class="dialog-row">
+          <button type="button" id="songDialogCancel">取消</button>
+          <button type="submit" id="songDialogOk" class="primary">保存</button>
+        </div>
+      </form>
+    </div>
+
+    <div
+      id="challengeBar"
+      class="challenge-bar hidden"
+      role="region"
+      aria-label="听音挑战"
+    >
+      <div class="challenge-head">
+        <span id="challengeStatus">听音挑战</span>
+        <button id="challengeExit" type="button" aria-label="退出听音挑战">✕ 退出</button>
+      </div>
+      <div class="challenge-controls">
+        <button id="challengeReplay" type="button">🔁 重听示范</button>
+        <button id="challengeHint" type="button">💡 位置提示</button>
+        <button id="challengeSubmit" type="button" class="primary">✅ 提交答案</button>
+        <button id="challengeNext" type="button" class="primary" hidden>➡️ 下一关</button>
+      </div>
+    </div>
+
+    <!-- 声音探索任务册 -->
+    <div
+      id="taskBook"
+      class="tb-backdrop hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="taskBookTitle"
+    >
+      <div class="tb-sheet">
+        <div class="tb-top">
+          <div class="tb-heading">
+            <h2 id="taskBookTitle">📖 声音探索任务册</h2>
+            <p id="taskBookProgress" class="tb-progress">已完成 0/5 个任务</p>
+          </div>
+          <button id="taskBookClose" type="button" class="tb-close" aria-label="收起任务册">✕</button>
+        </div>
+        <p id="taskBookAllDone" class="tb-alldone" hidden>
+          🏆 全部任务完成！孩子已经是小小声音探险家啦，记得鼓个掌～
+        </p>
+        <div id="taskBookList" class="tb-list"></div>
+        <button id="taskBookReset" type="button" class="tb-reset">🧽 清空任务册（重新开始）</button>
+        <p class="tb-foot">
+          标着「自动」的步骤孩子做到就会自己盖章；标着「盖章」的是亲子聊天小任务，聊完点前面的圆圈盖章。进度只保存在这台设备上。
+        </p>
+      </div>
+    </div>
+
+    <!-- 边玩边看：任务收起后的紧凑提示条，孩子操作河流时仍能看到当前指引 -->
+    <div
+      id="taskBar"
+      class="tb-bar hidden"
+      role="region"
+      aria-label="边玩边看任务提示"
+    >
+      <button id="taskBarMain" type="button" class="tb-bar-main" aria-expanded="false">
+        <span id="taskBarIcon" class="tb-bar-icon" aria-hidden="true">📖</span>
+        <span class="tb-bar-texts">
+          <span id="taskBarTitle" class="tb-bar-title"></span>
+          <span id="taskBarStep" class="tb-bar-step"></span>
+        </span>
+        <span id="taskBarProgress" class="tb-bar-progress" aria-hidden="true"></span>
+      </button>
+      <button id="taskBarStamp" type="button" class="tb-bar-stamp" hidden></button>
+      <button id="taskBarAction" type="button" class="tb-bar-action" hidden></button>
+      <button id="taskBarExpand" type="button" class="tb-bar-btn tb-bar-expand" aria-label="展开任务册" title="展开任务册">📖</button>
+      <button id="taskBarClose" type="button" class="tb-bar-btn tb-bar-x" aria-label="收起任务提示" title="收起任务提示">✕</button>
+    </div>
+
+    <div id="toast" role="status"></div>
+    <div id="perfBadge" role="status" hidden><span class="perf-dot" aria-hidden="true"></span>演奏录制中 <span id="perfBadgeTime">0:00</span></div>
+    <div id="hint">把河里的声波碎片拖进上面的圆圈 ♪ 调节水位，寻找被淹没的音符</div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

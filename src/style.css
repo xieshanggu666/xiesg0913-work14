@@ -1,0 +1,1392 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: #0b2545;
+  font-family: 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+canvas {
+  display: block;
+  touch-action: none;
+}
+
+/* ---------- 统一焦点样式：键盘/读屏可见，鼠标点击不刺眼 ---------- */
+
+#panelToggle:focus-visible,
+#panel button:focus-visible,
+.challenge-bar button:focus-visible,
+#panel input[type='range']:focus-visible,
+.dialog button:focus-visible,
+.song-open:focus-visible {
+  outline: 3px solid #1565c0;
+  outline-offset: 2px;
+}
+
+#panel button.weather.active:focus-visible {
+  outline-color: #0d47a1;
+}
+
+#panelToggle:active {
+  transform: scale(0.94);
+}
+
+/* ---------- 左上进度 ---------- */
+
+#hud.hidden,
+#hint.hidden {
+  display: none;
+}
+
+#hud {
+  position: fixed;
+  top: calc(12px + env(safe-area-inset-top, 0px));
+  left: 12px;
+  z-index: 10;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-size: 20px;
+  font-weight: 700;
+  color: #0b2545;
+  pointer-events: none;
+}
+
+/* ---------- 面板开关 ---------- */
+
+#panelToggle {
+  position: fixed;
+  top: calc(12px + env(safe-area-inset-top, 0px));
+  right: 12px;
+  z-index: 12;
+  font-size: 24px;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.2s ease;
+}
+
+#panelToggle[aria-expanded='true'] {
+  background: #1e88e5;
+}
+
+/* ---------- 家长面板 ---------- */
+
+#panel {
+  position: fixed;
+  top: calc(74px + env(safe-area-inset-top, 0px));
+  right: 12px;
+  z-index: 11;
+  width: min(300px, calc(100vw - 24px));
+  max-height: calc(100vh - 96px - env(safe-area-inset-top, 0px));
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  background: rgba(255, 255, 255, 0.94);
+  border-radius: 18px;
+  padding: 14px 16px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3);
+  transition: transform 0.25s ease, opacity 0.25s ease;
+}
+
+#panel.hidden {
+  transform: translateY(-12px);
+  opacity: 0;
+  pointer-events: none;
+}
+
+#panel .group {
+  margin-bottom: 12px;
+}
+
+#panel .label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+#panel label {
+  font-size: 14px;
+  font-weight: 700;
+  color: #234;
+}
+
+/* 实时数值提示 */
+#panel .readout {
+  flex: none;
+  font-size: 13px;
+  font-weight: 700;
+  color: #0d47a1;
+  background: #e3f2fd;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+#panel input[type='range'] {
+  width: 100%;
+  /* 触控热区不低于 40px，拇指更容易抓住 */
+  height: 40px;
+  margin: 0;
+  accent-color: #1e88e5;
+  cursor: pointer;
+}
+
+#panel .row {
+  display: flex;
+  gap: 8px;
+}
+
+#panel button {
+  flex: 1;
+  font-size: 20px;
+  /* 最小点击区域 44×44（移动端无障碍推荐尺寸） */
+  min-height: 44px;
+  padding: 10px 8px;
+  border: none;
+  border-radius: 12px;
+  background: #e3f2fd;
+  color: #123;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+@media (hover: hover) {
+  #panel button:hover {
+    background: #bbdefb;
+  }
+}
+
+#panel button:active {
+  transform: scale(0.97);
+}
+
+/* 天气按钮：选中态用填充色而非仅描边，对比度更高 */
+#panel button.weather {
+  flex: 0 0 auto;
+  width: 52px;
+  font-size: 22px;
+}
+
+#panel button.weather.active {
+  background: #1e88e5;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.55);
+}
+
+/* 静音状态：按钮自身也呈现“已静音”的可读样式 */
+#mute[aria-pressed='true'] {
+  background: #cfd8dc;
+}
+
+#mic.recording {
+  background: #ef5350;
+  color: #fff;
+  animation: pulse 1s infinite;
+}
+
+/* ---------- 录下演奏 ---------- */
+
+#panel .performance {
+  border-top: 1px dashed #b0c4d8;
+  padding-top: 10px;
+}
+
+#panel button.danger {
+  background: #fbe9e7;
+  color: #b71c1c;
+  font-weight: 700;
+}
+
+@media (hover: hover) {
+  #panel button.danger:hover {
+    background: #ffccbc;
+  }
+}
+
+#panel button.ghost {
+  flex: 0 0 auto;
+  width: 48px;
+  padding: 6px;
+}
+
+#perfTime {
+  font-variant-numeric: tabular-nums;
+}
+
+#perfAudio {
+  display: block;
+  width: 100%;
+  height: 36px;
+  margin-top: 8px;
+}
+
+#perfAudio[hidden] {
+  display: none;
+}
+
+/* 面板收起（手机上是底部抽屉）时仍能看到“正在录演奏” */
+#perfBadge {
+  position: fixed;
+  top: calc(12px + env(safe-area-inset-top, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #b71c1c;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 7px 14px;
+  border-radius: 999px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+
+#perfBadge[hidden] {
+  display: none;
+}
+
+.perf-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #e53935;
+  animation: pulse 1s infinite;
+}
+
+@media (max-width: 600px) {
+  #perfBadge {
+    top: auto;
+    bottom: calc(66px + env(safe-area-inset-bottom, 0px));
+    font-size: 13px;
+    padding: 6px 12px;
+  }
+}
+
+/* ---------- 本地作品集 ---------- */
+
+#panel .portfolio {
+  border-top: 1px dashed #b0c4d8;
+  padding-top: 10px;
+}
+
+#panel .portfolio-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #234;
+}
+
+#currentSong {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#panel button.primary {
+  background: #1e88e5;
+  color: #fff;
+  font-weight: 700;
+}
+
+@media (hover: hover) {
+  #panel button.primary:hover {
+    background: #1976d2;
+  }
+}
+
+#saveAsSong[hidden] {
+  display: none;
+}
+
+#saveAsSong {
+  flex: 0 0 auto;
+  font-size: 13px;
+  padding: 10px 12px;
+}
+
+/* 导入备份：低调的次级按钮，不抢「保存」的主操作位 */
+#importSong {
+  font-size: 14px;
+  background: #f2f7fc;
+  border: 1px solid #d4e4f2;
+}
+
+@media (hover: hover) {
+  #importSong:hover {
+    background: #e3f2fd;
+  }
+}
+
+.song-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.song-item {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.song-open {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  padding: 8px 12px;
+  background: #f2f7fc;
+  border: 1px solid #d4e4f2;
+  border-radius: 12px;
+}
+
+.song-item.current .song-open {
+  background: #e3f2fd;
+  border-color: #90caf9;
+  box-shadow: inset 0 0 0 1px #64b5f6;
+}
+
+.song-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.song-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #123;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.song-meta {
+  font-size: 12px;
+  color: #5a7186;
+  font-variant-numeric: tabular-nums;
+}
+
+.song-export {
+  flex: 0 0 auto;
+  width: 48px;
+  min-height: 44px;
+  font-size: 17px;
+  padding: 6px;
+  background: #e3f2fd;
+  color: #0d47a1;
+}
+
+@media (hover: hover) {
+  .song-export:hover {
+    background: #bbdefb;
+  }
+}
+
+.song-delete {
+  flex: 0 0 auto;
+  width: 48px;
+  min-height: 44px;
+  font-size: 17px;
+  padding: 6px;
+  background: #fbe9e7;
+  color: #b71c1c;
+}
+
+@media (hover: hover) {
+  .song-delete:hover {
+    background: #ffccbc;
+  }
+  .song-delete.confirm:hover {
+    background: #c62828;
+  }
+}
+
+.song-delete.confirm {
+  width: auto;
+  flex: 1 1 auto;
+  font-size: 13px;
+  font-weight: 700;
+  background: #e53935;
+  color: #fff;
+  animation: pulse 1s infinite;
+}
+
+#songListEmpty {
+  margin-top: 6px;
+}
+
+#songListEmpty[hidden] {
+  display: none;
+}
+
+/* ---------- 命名对话框 ---------- */
+
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  /* 必须高于任务册遮罩（31）：任务册里的「去保存这首歌」会在任务册之上弹出命名框 */
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 25, 50, 0.55);
+  padding: 24px;
+}
+
+.dialog-backdrop.hidden {
+  display: none;
+}
+
+.dialog {
+  width: min(340px, 92vw);
+  background: #fff;
+  border-radius: 18px;
+  padding: 20px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+
+.dialog h2 {
+  margin: 0 0 14px;
+  font-size: 17px;
+  color: #123;
+}
+
+.dialog input[type='text'] {
+  width: 100%;
+  font-size: 16px; /* ≥16px 避免 iOS 聚焦时自动放大页面 */
+  padding: 12px 14px;
+  border: 2px solid #b0c4d8;
+  border-radius: 12px;
+  color: #123;
+  background: #f8fbfe;
+}
+
+.dialog input[type='text']:focus {
+  outline: none;
+  border-color: #1e88e5;
+}
+
+.dialog-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.dialog-row button {
+  flex: 1;
+  min-height: 44px;
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 700;
+  background: #e3f2fd;
+  color: #123;
+  cursor: pointer;
+}
+
+.dialog-row button.primary {
+  background: #1e88e5;
+  color: #fff;
+}
+
+#panel .tip {
+  font-size: 12px;
+  color: #456;
+  margin: 4px 0 0;
+  line-height: 1.6;
+}
+
+/* ---------- 声音探索任务册 ---------- */
+
+/* 入口按钮上的完成数徽章 */
+.task-badge {
+  display: inline-block;
+  min-width: 18px;
+  height: 18px;
+  margin-left: 4px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #ff8f00;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 18px;
+  vertical-align: middle;
+}
+
+.task-badge[hidden] {
+  display: none;
+}
+
+#taskBookOpen:disabled {
+  opacity: 0.55;
+}
+
+.tb-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 31;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: max(56px, env(safe-area-inset-top, 0px)) 12px 12px;
+  background: rgba(8, 25, 50, 0.5);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tb-backdrop.hidden {
+  display: none;
+}
+
+.tb-sheet {
+  width: min(560px, 100%);
+  background: #fffdf5;
+  border-radius: 22px;
+  padding: 16px 18px 14px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  border: 2px solid #ffe3a8;
+}
+
+.tb-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.tb-heading h2 {
+  margin: 0;
+  font-size: 19px;
+  color: #5d4037;
+}
+
+.tb-progress {
+  margin: 3px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #a6762a;
+}
+
+.tb-close {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background: #fbe9e7;
+  color: #b71c1c;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .tb-close:hover {
+    background: #ffccbc;
+  }
+}
+
+.tb-alldone {
+  margin: 0 0 10px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: #fff3e0;
+  color: #e65100;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.tb-alldone[hidden] {
+  display: none;
+}
+
+.tb-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tb-card {
+  border: 2px solid #ffe3a8;
+  border-radius: 16px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.tb-card.done {
+  border-color: #ffca28;
+  background: #fffde7;
+}
+
+.tb-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  padding: 12px 14px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.tb-head-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+}
+
+.tb-icon {
+  flex: 0 0 auto;
+  font-size: 26px;
+  width: 34px;
+  text-align: center;
+}
+
+.tb-titles {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tb-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: #4e342e;
+}
+
+.tb-goal {
+  font-size: 12.5px;
+  color: #7d6f63;
+  line-height: 1.45;
+}
+
+.tb-dots {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 4px;
+}
+
+.tb-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #e0dccf;
+}
+
+.tb-dot.on {
+  background: #ffb300;
+}
+
+.tb-card.done .tb-title::after {
+  content: ' 已盖章 ⭐';
+  font-size: 12px;
+  color: #e65100;
+  font-weight: 700;
+}
+
+.tb-body {
+  padding: 2px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tb-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.tb-step.done .tb-step-main {
+  color: #8d7b62;
+}
+
+.tb-stamp {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  margin-top: 1px;
+  border-radius: 50%;
+  border: 2px solid #d7c9a8;
+  background: #fdf8ec;
+  color: #a8926a;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 0;
+}
+
+.tb-step.done .tb-stamp {
+  border-color: #ffb300;
+  background: #ffca28;
+  color: #4e342e;
+}
+
+button.tb-stamp:disabled {
+  /* 自动步骤未完成时：圆圈呈现为小传感器样式，不可点 */
+  cursor: default;
+  border-style: dashed;
+}
+
+/* 事实锁定/自动判定且已完成的章：实线实心，和普通完成章一致 */
+.tb-step.done button.tb-stamp:disabled,
+.tb-stamp.locked {
+  border-style: solid;
+  cursor: default;
+}
+
+.tb-step-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.tb-step-main {
+  margin: 2px 0 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: #3e2723;
+}
+
+.tb-tag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 800;
+  border-radius: 999px;
+  padding: 1px 7px;
+  margin-right: 6px;
+  vertical-align: 1px;
+}
+
+.tb-tag.auto {
+  background: #e3f2fd;
+  color: #0d47a1;
+}
+
+.tb-tag.manual {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.tb-step.done .tb-tag {
+  opacity: 0.75;
+}
+
+.tb-hint {
+  margin: 5px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #6d5c4c;
+  background: #faf4e4;
+  border-radius: 10px;
+  padding: 6px 10px;
+}
+
+.tb-action {
+  margin-top: 7px;
+  min-height: 38px;
+  padding: 7px 16px;
+  border: none;
+  border-radius: 999px;
+  background: #1e88e5;
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .tb-action:hover {
+    background: #1976d2;
+  }
+}
+
+.tb-action:active {
+  transform: scale(0.97);
+}
+
+.tb-reset {
+  width: 100%;
+  margin-top: 12px;
+  padding: 9px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: #8d6e63;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.tb-reset.confirm {
+  background: #e53935;
+  color: #fff;
+  font-weight: 700;
+  animation: pulse 1s infinite;
+}
+
+.tb-foot {
+  margin: 6px 2px 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #8d7b62;
+  text-align: center;
+}
+
+.tb-backdrop button:focus-visible {
+  outline: 3px solid #1565c0;
+  outline-offset: 2px;
+}
+
+@media (max-width: 600px) {
+  .tb-backdrop {
+    align-items: flex-end;
+    padding: 12px 8px calc(8px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .tb-sheet {
+    border-radius: 20px;
+    padding: 14px 14px 12px;
+    max-height: 82vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tb-heading h2 {
+    font-size: 17px;
+  }
+
+  .tb-goal {
+    font-size: 12px;
+  }
+}
+
+/* ---------- 边玩边看：任务收起后的紧凑提示条 ---------- */
+
+.tb-bar {
+  position: fixed;
+  /* 落在顶部圆圈带的下方，不挡孩子拖碎片进圆圈，也不遮河面操作区 */
+  top: calc(104px + env(safe-area-inset-top, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 14;
+  width: min(560px, calc(100vw - 16px));
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 8px 7px 10px;
+  background: rgba(255, 253, 245, 0.96);
+  border: 2px solid #ffd980;
+  border-radius: 16px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.28);
+}
+
+.tb-bar.hidden {
+  display: none;
+}
+
+/* 提示条左半部分：图标 + 当前指引，点按即展开任务册 */
+.tb-bar-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 2px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tb-bar-icon {
+  flex: 0 0 auto;
+  width: 30px;
+  font-size: 22px;
+  text-align: center;
+}
+
+.tb-bar-texts {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.tb-bar-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #4e342e;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tb-bar-step {
+  font-size: 12px;
+  line-height: 1.4;
+  color: #6d5c4c;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tb-bar-progress {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #a6762a;
+  background: #fff3e0;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 提示条上的盖章圆圈（手动步骤） */
+.tb-bar-stamp {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 2px solid #ffb300;
+  background: #fff8e1;
+  color: #e65100;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 0;
+}
+
+@media (hover: hover) {
+  .tb-bar-stamp:hover {
+    background: #ffca28;
+  }
+}
+
+.tb-bar-stamp:active {
+  transform: scale(0.92);
+}
+
+/* 提示条上的快捷动作（切天气/调水位…） */
+.tb-bar-action {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 5px 12px;
+  border: none;
+  border-radius: 999px;
+  background: #1e88e5;
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+@media (hover: hover) {
+  .tb-bar-action:hover {
+    background: #1976d2;
+  }
+}
+
+.tb-bar-action:active {
+  transform: scale(0.95);
+}
+
+.tb-bar-btn {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 50%;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tb-bar-expand {
+  background: #fff3e0;
+  color: #e65100;
+  font-size: 16px;
+}
+
+@media (hover: hover) {
+  .tb-bar-expand:hover {
+    background: #ffe0b2;
+  }
+}
+
+.tb-bar-x {
+  background: #fbe9e7;
+  color: #b71c1c;
+}
+
+@media (hover: hover) {
+  .tb-bar-x:hover {
+    background: #ffccbc;
+  }
+}
+
+.tb-bar button:focus-visible {
+  outline: 3px solid #1565c0;
+  outline-offset: 2px;
+}
+
+/* 任务卡片里的「边玩边看」入口 */
+.tb-pin {
+  margin-top: 2px;
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 14px;
+  border: 2px dashed #ffb300;
+  border-radius: 12px;
+  background: #fff8e1;
+  color: #e65100;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .tb-pin:hover {
+    background: #ffecb3;
+  }
+}
+
+.tb-pin:active {
+  transform: scale(0.99);
+}
+
+.tb-pin.pinned {
+  border-style: solid;
+  background: #ffe0b2;
+}
+
+.tb-pin-note {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  color: #a6762a;
+  text-align: center;
+}
+
+@media (max-width: 600px) {
+  .tb-bar {
+    top: calc(100px + env(safe-area-inset-top, 0px));
+    gap: 5px;
+    padding: 6px 7px 6px 9px;
+    border-radius: 14px;
+  }
+
+  .tb-bar-icon {
+    width: 26px;
+    font-size: 19px;
+  }
+
+  .tb-bar-title {
+    font-size: 12.5px;
+  }
+
+  .tb-bar-step {
+    font-size: 11.5px;
+  }
+
+  .tb-bar-stamp,
+  .tb-bar-btn {
+    width: 32px;
+    height: 32px;
+  }
+
+  .tb-bar-action {
+    min-height: 32px;
+    padding: 4px 10px;
+    font-size: 12px;
+  }
+}
+
+/* 横屏矮窗口：圆圈带更靠上，提示条跟着收紧间距 */
+@media (max-width: 900px) and (max-height: 480px) {
+  .tb-bar {
+    top: calc(84px + env(safe-area-inset-top, 0px));
+  }
+}
+
+/* ---------- 听音挑战控制条 ---------- */
+
+.challenge-bar {
+  position: fixed;
+  left: 50%;
+  bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  z-index: 13;
+  width: min(560px, calc(100vw - 24px));
+  background: rgba(255, 255, 255, 0.94);
+  border-radius: 18px;
+  padding: 10px 12px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3);
+}
+
+.challenge-bar.hidden {
+  display: none;
+}
+
+.challenge-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+#challengeStatus {
+  font-size: 15px;
+  font-weight: 800;
+  color: #123;
+  min-width: 0;
+}
+
+#challengeStatus.good {
+  color: #1b8f5a;
+}
+
+#challengeStatus.bad {
+  color: #c62828;
+}
+
+.challenge-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.challenge-controls button {
+  flex: 1;
+  min-height: 42px;
+  border: none;
+  border-radius: 12px;
+  background: #e3f2fd;
+  color: #123;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 8px;
+  cursor: pointer;
+}
+
+.challenge-controls button.primary {
+  background: #1e88e5;
+  color: #fff;
+}
+
+.challenge-controls button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+#challengeExit {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 999px;
+  background: #fbe9e7;
+  color: #b71c1c;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+#challengeStart:disabled {
+  opacity: 0.55;
+}
+
+/* ---------- 反馈提示：默认贴近底部，避开河面/顶部圆圈拖拽区 ---------- */
+
+#toast {
+  position: fixed;
+  bottom: 64px;
+  left: 50%;
+  transform: translate(-50%, 10px);
+  /* 高于命名框（40）：保存成功等反馈在任务册 + 命名框场景下仍要清晰可见 */
+  z-index: 45;
+  max-width: min(90vw, 420px);
+  text-align: center;
+  background: rgba(20, 40, 70, 0.88);
+  color: #fff;
+  font-size: 16px;
+  line-height: 1.5;
+  padding: 10px 20px;
+  border-radius: 999px;
+  opacity: 0;
+  transition: opacity 0.3s, transform 0.3s;
+  pointer-events: none;
+  white-space: normal;
+}
+
+#toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* 反馈出现时弱化底部说明，避免两行文字叠在一起抢视线 */
+#toast.show ~ #hint {
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+#hint {
+  position: fixed;
+  bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  max-width: 92vw;
+  text-align: center;
+  background: rgba(10, 30, 60, 0.45);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 8px 14px;
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+/* ---------- 窄屏：面板改为底部抽屉，让出整个河面拖拽区 ---------- */
+
+@media (max-width: 600px) {
+  .challenge-bar {
+    bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    padding: 8px 10px;
+    border-radius: 18px;
+  }
+
+  .challenge-head {
+    margin-bottom: 6px;
+  }
+
+  #challengeStatus {
+    font-size: 13.5px;
+  }
+
+  .challenge-controls button {
+    font-size: 13px;
+    padding: 7px 4px;
+  }
+
+  #hud {
+    font-size: 16px;
+    padding: 6px 12px;
+  }
+
+  #panelToggle {
+    width: 48px;
+    height: 48px;
+    font-size: 22px;
+  }
+
+  #panel {
+    top: auto;
+    left: 8px;
+    right: 8px;
+    bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    width: auto;
+    max-height: min(62vh, 460px);
+    padding: 12px 14px;
+    border-radius: 20px;
+  }
+
+  #panel.hidden {
+    transform: translateY(calc(100% + 24px));
+  }
+
+  #panel .group {
+    margin-bottom: 10px;
+  }
+
+  #panel label {
+    font-size: 15px;
+  }
+
+  #mic {
+    font-size: 15px;
+    letter-spacing: 0.02em;
+  }
+
+  #panel .tip {
+    font-size: 12.5px;
+  }
+
+  #hint {
+    font-size: 12.5px;
+    padding: 6px 12px;
+  }
+
+  /* 面板（底部抽屉）打开时，反馈移到顶部圆圈带下方，不遮挡抽屉也不挡河面 */
+  #panel:not(.hidden) ~ #toast {
+    bottom: auto;
+    top: calc(120px + env(safe-area-inset-top, 0px));
+    transform: translate(-50%, 10px);
+  }
+
+  #panel:not(.hidden) ~ #toast.show {
+    transform: translate(-50%, 0);
+  }
+}
+
+/* 横屏矮窗口：抽屉限高可滚动，避免盖住整个河面 */
+@media (max-width: 900px) and (max-height: 480px) {
+  #panel {
+    max-height: 58vh;
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.06);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #panel,
+  #panelToggle,
+  #toast,
+  #mic.recording,
+  .perf-dot {
+    transition: none;
+    animation: none;
+  }
+}
