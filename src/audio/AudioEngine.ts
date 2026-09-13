@@ -43,6 +43,7 @@ export class AudioEngine {
   private sequencerPaused = false;
   private activeMusicSources = new Set<AudioScheduledSourceNode>();
   private activeDemoSources = new Map<number, AudioScheduledSourceNode>();
+  private previewSource: AudioBufferSourceNode | null = null;
   private demoToken = 0;
   private voiceProvider: (step: number) => StepVoice | null = () => null;
 
@@ -175,6 +176,39 @@ export class AudioEngine {
   pluckNow(freq: number): void {
     if (!this.ctx) return;
     this.pluck(freq, 'triangle', this.ctx.currentTime, 0.5, 0.25);
+  }
+
+  /**
+   * 试听素材库里的录音：走 solo 总线（循环暂停/示范间隙也听得到）。
+   * 新的试听会顶掉上一段；onEnded 在自然播完或被顶掉/停止时都会触发，
+   * 供 UI 复位「试听中」状态。
+   */
+  previewBuffer(buffer: AudioBuffer, onEnded?: () => void): void {
+    if (!this.ctx || !this.soloBus) return;
+    this.stopPreview();
+    const src = this.ctx.createBufferSource();
+    src.buffer = buffer;
+    const g = this.ctx.createGain();
+    g.gain.value = 0.9;
+    src.connect(g);
+    g.connect(this.soloBus);
+    this.previewSource = src;
+    src.onended = () => {
+      if (this.previewSource === src) this.previewSource = null;
+      onEnded?.();
+    };
+    src.start();
+  }
+
+  stopPreview(): void {
+    const src = this.previewSource;
+    if (!src) return;
+    this.previewSource = null;
+    try {
+      src.stop();
+    } catch {
+      /* 可能已经自然结束 */
+    }
   }
 
   /** 收集到水下音符的风铃声 */

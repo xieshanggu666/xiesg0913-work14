@@ -1,6 +1,15 @@
 import type { WeatherKind } from '../audio/AudioEngine';
 import { PERFORMANCE_MAX_SECONDS } from '../audio/PerformanceRecorder';
 import type { SongSummary } from '../data/Portfolio';
+import type { SoundClipSummary } from '../data/SoundLibrary';
+
+/** 河里一块可收藏的录音碎片（供素材库「⭐ 收藏」列表展示） */
+export interface RiverVoiceInfo {
+  id: string;
+  name: string;
+  /** 录音时长（秒） */
+  duration: number;
+}
 
 export interface PanelCallbacks {
   onFlow: (v: number) => void;
@@ -23,6 +32,14 @@ export interface PanelCallbacks {
   onPerformanceStart: () => void;
   onPerformanceStop: () => void;
   onPerformanceCancel: () => void;
+  /** 把河里某块录音碎片命名收藏进素材库 */
+  onSaveSoundToLibrary: (fragmentId: string, name: string) => void;
+  onRenameSound: (clipId: string, name: string) => void;
+  onDeleteSound: (clipId: string) => void;
+  /** 试听 / 停止试听某段素材 */
+  onToggleSoundPreview: (clipId: string) => void;
+  /** 把素材加入当前河流（新增一块碎片，不动已有编排） */
+  onAddSoundToRiver: (clipId: string) => void;
 }
 
 const WEATHER_ICON: Record<WeatherKind, string> = { sunny: '☀️', rain: '🌧️', wind: '💨' };
@@ -37,13 +54,25 @@ export class Panel {
   private currentId: string | null = null;
   private currentName = '';
   private confirmTimer: number | null = null;
-  private dialogMode: 'save' | 'saveAs' = 'save';
+  private dialogMode: 'save' | 'saveAs' | 'soundSave' | 'soundRename' = 'save';
+  /** soundSave 时是河里碎片的 id，soundRename 时是素材 id */
+  private dialogTargetId: string | null = null;
 
   private saveAsBtn: HTMLButtonElement;
   private currentSong: HTMLOutputElement;
   private songList: HTMLUListElement;
   private songListEmpty: HTMLElement;
   private importInput: HTMLInputElement;
+
+  // ---------- 声音素材库 ----------
+  private riverVoiceHint: HTMLElement;
+  private riverVoiceList: HTMLUListElement;
+  private riverVoiceEmpty: HTMLElement;
+  private soundList: HTMLUListElement;
+  private soundListEmpty: HTMLElement;
+  /** 最近一次渲染的素材列表（改名预填当前名字用） */
+  private clips = new Map<string, SoundClipSummary>();
+  private previewingId: string | null = null;
 
   // ---------- 录下演奏 ----------
   private perfTime: HTMLOutputElement;
@@ -66,6 +95,8 @@ export class Panel {
   private perfPlaybackFromButton = false;
 
   private dialog: HTMLElement;
+  private dialogTitle: HTMLElement;
+  private dialogOk: HTMLButtonElement;
   private nameInput: HTMLInputElement;
 
   constructor(private cb: PanelCallbacks) {
@@ -167,8 +198,17 @@ export class Panel {
       if (file) this.cb.onImportSong(file);
     });
 
+    // ---------- 声音素材库 ----------
+    this.riverVoiceHint = el('riverVoiceHint');
+    this.riverVoiceList = el<HTMLUListElement>('riverVoiceList');
+    this.riverVoiceEmpty = el('riverVoiceEmpty');
+    this.soundList = el<HTMLUListElement>('soundList');
+    this.soundListEmpty = el('soundListEmpty');
+
     this.dialog = el('songDialog');
     this.nameInput = el<HTMLInputElement>('songNameInput');
+    this.dialogTitle = el('songDialogTitle');
+    this.dialogOk = el<HTMLButtonElement>('songDialogOk');
     const form = el<HTMLFormElement>('songDialogForm');
     form.addEventListener('submit', (e) => {
       e.preventDefault();
@@ -483,12 +523,14 @@ export class Panel {
     return li;
   }
 
-  /** 取消所有删除按钮的“待确认”态（超时自动复位） */
+  /** 取消所有删除按钮的“待确认”态（超时自动复位）；作品集与素材库共用同一个确认计时 */
   private resetDeleteButtons(): void {
-    this.songList.querySelectorAll<HTMLButtonElement>('.song-delete.confirm').forEach((btn) => {
-      btn.classList.remove('confirm');
-      btn.textContent = '🗑️';
-    });
+    for (const list of [this.songList, this.soundList]) {
+      list.querySelectorAll<HTMLButtonElement>('.song-delete.confirm, .sound-delete.confirm').forEach((btn) => {
+        btn.classList.remove('confirm');
+        btn.textContent = '🗑️';
+      });
+    }
   }
 
   private fmtTime(ts: number): string {
@@ -497,12 +539,142 @@ export class Panel {
     return `${d.getMonth() + 1}月${d.getDate()}日 ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   }
 
-  // ---------- 命名对话框 ----------
+  // ---------- 声音素材库：河里可收藏的录音 + 已收藏素材 ----------
 
-  private openDialog(mode: 'save' | 'saveAs'): void {
+  /** 河里当前的录音碎片列表（录音、打开作品、素材入河后由 Game 刷新） */
+  setRiverVoices(voices: RiverVoiceInfo[]): void {
+    this.riverVoiceList.replaceChildren(...voices.map((v) => this.renderRiverVoice(v)));
+    this.riverVoiceEmpty.hidden = voices.length > 0;
+    this.riverVoiceHint.hidden = voices.length === 0;
+  }
+
+  private renderRiverVoice(v: RiverVoiceInfo): HTMLElement {
+    const li = document.createElement('li');
+    li.className = 'voice-item';
+
+    const label = document.createElement('span');
+    label.className = 'voice-label';
+    label.textContent = `🎙️ ${v.name} · ${v.duration.toFixed(1)}秒`;
+
+    const fav = document.createElement('button');
+    fav.type = 'button';
+    fav.className = 'voice-fav';
+    fav.textContent = '⭐ 收藏';
+    fav.setAttribute('aria-label', `把「${v.name}」收藏到素材库`);
+    fav.title = '起个名字，存进素材库反复使用';
+    fav.addEventListener('click', () => this.openDialog('soundSave', v.id));
+
+    li.append(label, fav);
+    return li;
+  }
+
+  setSoundClips(clips: SoundClipSummary[]): void {
+    this.clips = new Map(clips.map((c) => [c.id, c]));
+    this.soundList.replaceChildren(...clips.map((c) => this.renderSound(c)));
+    this.soundListEmpty.hidden = clips.length > 0;
+  }
+
+  /** 试听状态同步：正在试听的素材显示 ⏹️，其余显示 ▶️ */
+  setSoundPreviewing(id: string | null): void {
+    this.previewingId = id;
+    this.soundList.querySelectorAll<HTMLElement>('.sound-play').forEach((icon) => {
+      icon.textContent = icon.dataset.clipId === id ? '⏹️' : '▶️';
+    });
+  }
+
+  private renderSound(c: SoundClipSummary): HTMLElement {
+    const li = document.createElement('li');
+    li.className = 'sound-item';
+
+    // 整条上半部分都是试听键：目标大，家长一手抱孩子也能点中
+    const main = document.createElement('button');
+    main.type = 'button';
+    main.className = 'sound-main';
+    main.setAttribute('aria-label', `试听「${c.name}」`);
+    const playIcon = document.createElement('span');
+    playIcon.className = 'sound-play';
+    playIcon.dataset.clipId = c.id;
+    playIcon.textContent = this.previewingId === c.id ? '⏹️' : '▶️';
+    const head = document.createElement('span');
+    head.className = 'song-head';
+    const name = document.createElement('span');
+    name.className = 'song-name';
+    name.textContent = c.name;
+    const meta = document.createElement('span');
+    meta.className = 'song-meta';
+    const dur = c.duration > 0 ? `${c.duration.toFixed(1)}秒 · ` : '';
+    meta.textContent = `${dur}${this.fmtTime(c.updatedAt)}`;
+    head.append(name, meta);
+    main.append(playIcon, head);
+    main.addEventListener('click', () => this.cb.onToggleSoundPreview(c.id));
+
+    const actions = document.createElement('div');
+    actions.className = 'sound-actions';
+
+    const add = document.createElement('button');
+    add.type = 'button';
+    add.className = 'sound-add';
+    add.textContent = '➕ 加入河流';
+    add.title = '变成一块新碎片游进当前的河，不动已有的编排';
+    add.setAttribute('aria-label', `把「${c.name}」加入当前河流`);
+    add.addEventListener('click', () => this.cb.onAddSoundToRiver(c.id));
+
+    const rename = document.createElement('button');
+    rename.type = 'button';
+    rename.className = 'sound-rename';
+    rename.textContent = '✏️';
+    rename.title = '给这段声音改个名字';
+    rename.setAttribute('aria-label', `给「${c.name}」改名`);
+    rename.addEventListener('click', () => this.openDialog('soundRename', c.id));
+
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'sound-delete';
+    del.setAttribute('aria-label', `删除「${c.name}」`);
+    del.textContent = '🗑️';
+    del.addEventListener('click', () => {
+      if (!del.classList.contains('confirm')) {
+        // 两步确认，避免家长误触删掉孩子的声音
+        del.classList.add('confirm');
+        del.textContent = '再点一次确认删除';
+        if (this.confirmTimer !== null) window.clearTimeout(this.confirmTimer);
+        this.confirmTimer = window.setTimeout(() => this.resetDeleteButtons(), 3000);
+        return;
+      }
+      this.resetDeleteButtons();
+      this.cb.onDeleteSound(c.id);
+    });
+
+    actions.append(add, rename, del);
+    li.append(main, actions);
+    return li;
+  }
+
+  // ---------- 命名对话框（作品保存/另存 + 素材收藏/改名共用） ----------
+
+  private openDialog(
+    mode: 'save' | 'saveAs' | 'soundSave' | 'soundRename',
+    targetId: string | null = null
+  ): void {
     this.dialogMode = mode;
-    // 覆盖保存时沿用现名（家长可改）；另存为新歌时留空，便于起新名字
-    this.nameInput.value = mode === 'save' ? this.currentName : '';
+    this.dialogTargetId = targetId;
+    if (mode === 'soundSave') {
+      this.dialogTitle.textContent = '给这段声音起个名字';
+      this.nameInput.placeholder = '例如：宝宝的笑声';
+      this.dialogOk.textContent = '收藏';
+      this.nameInput.value = '';
+    } else if (mode === 'soundRename') {
+      this.dialogTitle.textContent = '给声音改个名字';
+      this.nameInput.placeholder = '例如：宝宝的笑声';
+      this.dialogOk.textContent = '保存';
+      this.nameInput.value = this.clips.get(targetId ?? '')?.name ?? '';
+    } else {
+      this.dialogTitle.textContent = '给河流之歌起个名字';
+      this.nameInput.placeholder = '例如：小雨的早晨';
+      this.dialogOk.textContent = '保存';
+      // 覆盖保存时沿用现名（家长可改）；另存为新歌时留空，便于起新名字
+      this.nameInput.value = mode === 'save' ? this.currentName : '';
+    }
     this.dialog.classList.remove('hidden');
     // 下一帧再聚焦，iOS Safari 对 display 切换当帧聚焦支持不好
     window.setTimeout(() => {
@@ -516,9 +688,24 @@ export class Panel {
   }
 
   private submitDialog(): void {
-    const name = this.nameInput.value.trim() || `河流之歌 ${this.fmtTime(Date.now())}`;
+    const input = this.nameInput.value.trim();
+    const mode = this.dialogMode;
+    const targetId = this.dialogTargetId;
+    this.dialogTargetId = null;
     this.closeDialog();
-    this.cb.onSaveSong(name, this.dialogMode === 'saveAs');
+    if (mode === 'soundSave') {
+      if (targetId) {
+        this.cb.onSaveSoundToLibrary(targetId, input || `我的声音 ${this.fmtTime(Date.now())}`);
+      }
+      return;
+    }
+    if (mode === 'soundRename') {
+      // 留空表示不改名，直接关掉即可
+      if (targetId && input) this.cb.onRenameSound(targetId, input);
+      return;
+    }
+    const name = input || `河流之歌 ${this.fmtTime(Date.now())}`;
+    this.cb.onSaveSong(name, mode === 'saveAs');
   }
 
   toast(msg: string): void {

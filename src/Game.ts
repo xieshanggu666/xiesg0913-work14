@@ -17,6 +17,8 @@ import type { TaskAction, TaskState } from './tasks/tasks';
 import { Portfolio } from './data/Portfolio';
 import type { FragmentDoc, SongDoc } from './data/Portfolio';
 import { bytesToBase64, base64ToBytes, QuotaError, ImportError } from './data/Portfolio';
+import { SoundLibrary } from './data/SoundLibrary';
+import type { SoundClipDoc } from './data/SoundLibrary';
 
 const SCALE = [261.63, 293.66, 329.63, 392.0, 440.0, 523.25, 587.33, 659.25];
 const SOLFEGE = ['do', 're', 'mi', 'sol', 'la', 'do', 're', 'mi'];
@@ -67,6 +69,12 @@ export class Game {
   private weather = new Weather();
   private notes = new NoteField(SLOT_COUNT, SCALE);
   private portfolio = new Portfolio();
+  private soundLibrary = new SoundLibrary();
+  /** 素材试听/入河共用的解码缓存（按素材 id，最多 8 段，先进先出） */
+  private clipBuffers = new Map<string, AudioBuffer>();
+  private previewingSoundId: string | null = null;
+  /** 每次发起试听自增，旧 decode 的结果作废，避免快速连点时状态错乱 */
+  private previewToken = 0;
   private taskProgress = new TaskProgress();
   private taskBook: TaskBook | null = null;
   /** 进入本次会话时已经盖完章的任务：不再重复弹祝贺，之后新完成的才提示 */
@@ -177,9 +185,16 @@ export class Game {
       onPerformanceStart: () => void this.startPerformance(),
       onPerformanceStop: () => void this.stopPerformance(),
       onPerformanceCancel: () => this.cancelPerformance(),
+      onSaveSoundToLibrary: (fragmentId, name) => this.saveSoundToLibrary(fragmentId, name),
+      onRenameSound: (id, name) => this.renameSound(id, name),
+      onDeleteSound: (id) => this.deleteSound(id),
+      onToggleSoundPreview: (id) => void this.toggleSoundPreview(id),
+      onAddSoundToRiver: (id) => void this.addSoundToRiver(id),
     });
     this.panel.setNotes(0, SLOT_COUNT);
     this.refreshSongList();
+    this.refreshSoundLibrary();
+    this.refreshRiverVoices();
 
     this.taskBook = new TaskBook({
       onAction: (a) => this.runTaskAction(a),
@@ -976,6 +991,7 @@ export class Game {
       this.panel.toast('你的声音游进河里啦！🐟');
       this.taskProgress.record({ micRecordings: this.taskProgress.facts.micRecordings + 1 });
       this.refreshTaskBook();
+      this.refreshRiverVoices();
     } catch {
       this.panel.toast('这段声音没法用 😢');
     }
@@ -1327,6 +1343,166 @@ export class Game {
     this.collected = 0;
     this.panel.setNotes(0, SLOT_COUNT);
     this.notes.layout(p.width, p.height);
+    // 河里换了一批碎片，素材库的「⭐ 收藏」列表跟着刷新
+    this.refreshRiverVoices();
+  }
+
+  // ---------- 声音素材库 ----------
+
+  private refreshSoundLibrary(): void {
+    this.panel.setSoundClips(this.soundLibrary.list());
+  }
+
+  /** 河里当前可收藏的录音碎片（含格子里的），供家长挑一段命名收藏 */
+  private refreshRiverVoices(): void {
+    const voices = this.fragments.filter((f) => f.spec.kind === 'voice' && f.spec.audio);
+    this.panel.setRiverVoices(
+      voices.map((f, i) => ({
+        id: f.id,
+        // 从素材库入河的碎片带着名字，直接展示；新录的还是「录音 N」
+        name: f.spec.label && f.spec.label !== '🎙️' ? f.spec.label : `录音 ${i + 1}`,
+        duration: f.spec.audio!.buffer.duration,
+      }))
+    );
+  }
+
+  /** 解码素材录音；AudioBuffer 无法持久化，每次会话从 base64 解码并缓存 */
+  private async decodeClip(clip: SoundClipDoc): Promise<AudioBuffer> {
+    const hit = this.clipBuffers.get(clip.id);
+    if (hit) return hit;
+    const bytes = base64ToBytes(clip.audio);
+    const buffer = await this.audio.decode(bytes.slice().buffer);
+    if (this.clipBuffers.size >= 8) {
+      // Map 按插入序迭代，淘汰最早缓存的一段，避免长时间游玩后内存膨胀
+      const oldest = this.clipBuffers.keys().next().value;
+      if (oldest !== undefined) this.clipBuffers.delete(oldest);
+    }
+    this.clipBuffers.set(clip.id, buffer);
+    return buffer;
+  }
+
+  /** 把河里某块录音碎片命名收藏进素材库（碎片本身留在河里，收藏是复制） */
+  private saveSoundToLibrary(fragmentId: string, name: string): void {
+    const frag = this.fragments.find((f) => f.id === fragmentId);
+    const audio = frag?.spec.audio ?? null;
+    if (!frag || !audio) {
+      // 列表是旧快照（碎片已被换走）：刷新列表让家长重新选择
+      this.panel.toast('这块录音碎片已经不在河里了 🤔');
+      this.refreshRiverVoices();
+      return;
+    }
+    const now = Date.now();
+    try {
+      this.soundLibrary.save({
+        id: SoundLibrary.newId(),
+        name,
+        createdAt: now,
+        updatedAt: now,
+        duration: audio.buffer.duration,
+        audio: bytesToBase64(audio.bytes),
+        audioMime: audio.mime,
+      });
+      this.refreshSoundLibrary();
+      this.panel.toast(`「${name}」收进素材库啦 ⭐`);
+    } catch (e) {
+      if (e instanceof QuotaError) this.panel.toast(e.message);
+      else this.panel.toast('收藏失败 😢 浏览器可能禁用了本地存储');
+    }
+  }
+
+  private renameSound(id: string, name: string): void {
+    try {
+      this.soundLibrary.rename(id, name);
+      this.refreshSoundLibrary();
+      this.panel.toast(`已改名为「${name}」✏️`);
+    } catch (e) {
+      if (e instanceof QuotaError) this.panel.toast(e.message);
+      else this.panel.toast('改名失败 😢');
+    }
+  }
+
+  private deleteSound(id: string): void {
+    // 正在试听这一段就先停下来（onended 会复位面板的试听状态）
+    if (this.previewingSoundId === id) this.audio.stopPreview();
+    this.clipBuffers.delete(id);
+    this.soundLibrary.remove(id);
+    this.refreshSoundLibrary();
+    this.panel.toast('已删除 🗑️');
+  }
+
+  private async toggleSoundPreview(id: string): Promise<void> {
+    const token = ++this.previewToken;
+    // 再点同一段 = 停止试听
+    if (this.previewingSoundId === id) {
+      this.audio.stopPreview();
+      this.previewingSoundId = null;
+      this.panel.setSoundPreviewing(null);
+      return;
+    }
+    const clip = this.soundLibrary.get(id);
+    if (!clip) {
+      this.refreshSoundLibrary();
+      return;
+    }
+    try {
+      await this.audio.unlock();
+      const buffer = await this.decodeClip(clip);
+      if (token !== this.previewToken) return; // 等待解码时家长又点了别的
+      this.audio.previewBuffer(buffer, () => {
+        if (token !== this.previewToken) return;
+        this.previewingSoundId = null;
+        this.panel.setSoundPreviewing(null);
+      });
+      this.previewingSoundId = id;
+      this.panel.setSoundPreviewing(id);
+    } catch {
+      this.panel.toast('这段声音播不出来 😢');
+    }
+  }
+
+  /** 把素材变成一块新的橙色碎片放进河里；只新增，不动 6 个格子里已有的编排 */
+  private async addSoundToRiver(id: string): Promise<void> {
+    if (this.challenge.active) {
+      this.panel.toast('先退出听音挑战，再把素材放进河里 🎧');
+      return;
+    }
+    if (this.restoring) {
+      this.panel.toast('正在打开作品，稍等一下 ⏳');
+      return;
+    }
+    const clip = this.soundLibrary.get(id);
+    if (!clip) {
+      this.refreshSoundLibrary();
+      return;
+    }
+    try {
+      await this.audio.unlock();
+      const buffer = await this.decodeClip(clip);
+      const bytes = base64ToBytes(clip.audio);
+      const voice: VoiceAudio = { bytes, mime: clip.audioMime, buffer };
+      const frag = new Fragment(
+        {
+          id: `voice-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+          kind: 'voice',
+          toneIndex: -1,
+          freq: 261.63,
+          timbre: 'sample',
+          color: VOICE_COLOR,
+          // 碎片上最多画得下 8 个字，长名字截断展示（素材库里的全名不受影响）
+          label: clip.name.length > 8 ? clip.name.slice(0, 8) : clip.name,
+          buffer,
+          audio: voice,
+        },
+        this.p.width * (0.2 + Math.random() * 0.6),
+        this.surfaceY() + 8
+      );
+      this.fragments.push(frag);
+      Matter.Composite.add(this.engine.world, frag.body);
+      this.refreshRiverVoices();
+      this.panel.toast(`「${clip.name}」游进河里啦，原来的编排没有变 ♪`);
+    } catch {
+      this.panel.toast('这段声音没法用 😢');
+    }
   }
 
   // ---------- 渲染 ----------

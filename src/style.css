@@ -441,6 +441,180 @@ canvas {
   display: none;
 }
 
+/* ---------- 声音素材库 ---------- */
+
+#panel .soundlib {
+  border-top: 1px dashed #b0c4d8;
+  padding-top: 10px;
+}
+
+#riverVoiceHint[hidden],
+#riverVoiceEmpty[hidden],
+#soundListEmpty[hidden] {
+  display: none;
+}
+
+.voice-list,
+.sound-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* 河里可收藏的录音碎片：暖黄色便签样式，和橙色录音碎片呼应 */
+.voice-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px 6px 12px;
+  background: #fff8ec;
+  border: 1px solid #ffe0b2;
+  border-radius: 12px;
+}
+
+.voice-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #5d4037;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+#panel .voice-fav {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 5px 12px;
+  border: none;
+  border-radius: 999px;
+  background: #ffb300;
+  color: #4e342e;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+@media (hover: hover) {
+  #panel .voice-fav:hover {
+    background: #ffa000;
+  }
+}
+
+/* 素材条目：上行试听（整条可点），下行操作（加入河流 / 改名 / 删除） */
+.sound-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: #f2f7fc;
+  border: 1px solid #d4e4f2;
+  border-radius: 12px;
+}
+
+#panel .sound-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  text-align: left;
+}
+
+@media (hover: hover) {
+  #panel .sound-main:hover {
+    background: #e3f2fd;
+  }
+}
+
+.sound-play {
+  flex: 0 0 auto;
+  width: 30px;
+  font-size: 18px;
+  text-align: center;
+}
+
+.sound-item .song-head {
+  flex: 1 1 auto;
+}
+
+.sound-actions {
+  display: flex;
+  gap: 6px;
+}
+
+#panel .sound-add {
+  flex: 1 1 auto;
+  min-height: 40px;
+  font-size: 14px;
+  font-weight: 700;
+  background: #e8f5e9;
+  color: #1b5e20;
+  border: 1px solid #c8e6c9;
+}
+
+@media (hover: hover) {
+  #panel .sound-add:hover {
+    background: #c8e6c9;
+  }
+}
+
+#panel .sound-rename {
+  flex: 0 0 auto;
+  width: 44px;
+  min-height: 40px;
+  font-size: 16px;
+  padding: 6px;
+}
+
+#panel .sound-delete {
+  flex: 0 0 auto;
+  width: 44px;
+  min-height: 40px;
+  font-size: 16px;
+  padding: 6px;
+  background: #fbe9e7;
+  color: #b71c1c;
+}
+
+@media (hover: hover) {
+  #panel .sound-delete:hover {
+    background: #ffccbc;
+  }
+}
+
+/* 删除两步确认：按钮撑开显示确认文案，红色脉冲引起注意 */
+#panel .sound-delete.confirm {
+  flex: 1 1 auto;
+  width: auto;
+  font-size: 13px;
+  font-weight: 700;
+  background: #e53935;
+  color: #fff;
+  animation: pulse 1s infinite;
+}
+
+@media (hover: hover) {
+  #panel .sound-delete.confirm:hover {
+    background: #c62828;
+  }
+}
+
+.sound-item button:focus-visible,
+.voice-item button:focus-visible {
+  outline: 3px solid #1565c0;
+  outline-offset: 2px;
+}
+
 /* ---------- 命名对话框 ---------- */
 
 .dialog-backdrop {
