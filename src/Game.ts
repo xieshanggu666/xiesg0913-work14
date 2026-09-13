@@ -72,6 +72,12 @@ export class Game {
   private soundLibrary = new SoundLibrary();
   /** 素材试听/入河共用的解码缓存（按素材 id，最多 8 段，先进先出） */
   private clipBuffers = new Map<string, AudioBuffer>();
+  /**
+   * 解码期间被删除的素材 id：decodeAudioData 无法中途取消，
+   * 解码完成后凭此集合丢弃结果（不入缓存、不播放、不入河）。
+   * 素材 id 生成后绝不复用，集合无需清理。
+   */
+  private cancelledClipIds = new Set<string>();
   private previewingSoundId: string | null = null;
   /** 每次发起试听自增，旧 decode 的结果作废，避免快速连点时状态错乱 */
   private previewToken = 0;
@@ -1366,12 +1372,16 @@ export class Game {
     );
   }
 
-  /** 解码素材录音；AudioBuffer 无法持久化，每次会话从 base64 解码并缓存 */
-  private async decodeClip(clip: SoundClipDoc): Promise<AudioBuffer> {
+  /**
+   * 解码素材录音；AudioBuffer 无法持久化，每次会话从 base64 解码并缓存。
+   * 解码期间素材被删除时返回 null：结果不入缓存，调用方也不再使用。
+   */
+  private async decodeClip(clip: SoundClipDoc): Promise<AudioBuffer | null> {
     const hit = this.clipBuffers.get(clip.id);
     if (hit) return hit;
     const bytes = base64ToBytes(clip.audio);
     const buffer = await this.audio.decode(bytes.slice().buffer);
+    if (this.cancelledClipIds.has(clip.id)) return null;
     if (this.clipBuffers.size >= 8) {
       // Map 按插入序迭代，淘汰最早缓存的一段，避免长时间游玩后内存膨胀
       const oldest = this.clipBuffers.keys().next().value;
@@ -1424,6 +1434,8 @@ export class Game {
   private deleteSound(id: string): void {
     // 正在试听这一段就先停下来（onended 会复位面板的试听状态）
     if (this.previewingSoundId === id) this.audio.stopPreview();
+    // 可能有尚未完成的解码（试听/加入河流刚点过）：标记取消，解码结果会被丢弃
+    this.cancelledClipIds.add(id);
     this.clipBuffers.delete(id);
     this.soundLibrary.remove(id);
     this.refreshSoundLibrary();
@@ -1447,6 +1459,7 @@ export class Game {
     try {
       await this.audio.unlock();
       const buffer = await this.decodeClip(clip);
+      if (!buffer) return; // 解码期间素材被删除，丢弃结果
       if (token !== this.previewToken) return; // 等待解码时家长又点了别的
       this.audio.previewBuffer(buffer, () => {
         if (token !== this.previewToken) return;
@@ -1478,6 +1491,7 @@ export class Game {
     try {
       await this.audio.unlock();
       const buffer = await this.decodeClip(clip);
+      if (!buffer) return; // 解码期间素材被删除，不再放进河里
       const bytes = base64ToBytes(clip.audio);
       const voice: VoiceAudio = { bytes, mime: clip.audioMime, buffer };
       const frag = new Fragment(
